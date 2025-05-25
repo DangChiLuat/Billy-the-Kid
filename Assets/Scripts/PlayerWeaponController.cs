@@ -1,5 +1,5 @@
-using System;
-using Unity.VisualScripting;
+using System.Collections.Generic;
+using System.Security.Cryptography;
 using UnityEngine;
 
 public class PlayerWeaponController : MonoBehaviour
@@ -9,22 +9,77 @@ public class PlayerWeaponController : MonoBehaviour
 
     private Player player;
 
+    [SerializeField] private Weapon currentWeapon;
+
+    [Header("Bullet details")]
     [SerializeField] private GameObject bulletPrefab;
     [SerializeField] private float bulletSpeed;
     [SerializeField] private Transform gunPoint;
 
-    
+
+    [Header("Inventory")]
+    [SerializeField] private int maxSlots = 2;
+    [SerializeField] private List<Weapon> weaponSlots;
+
+
 
     [SerializeField] private Transform weaponHolder;
+
+    public Weapon CurrenWeapon()=> currentWeapon;
 
     private void Start()
     {
         player = GetComponent<Player>();
-        player.controls.Character.Fire.performed += context => Shoot();
+        AssignInputEvents();
+
+        currentWeapon.bulletsInMagazine = currentWeapon.totalReserverAmmo;
     }
 
+    private void AssignInputEvents()
+    {
+        PlayerControls controls = player.controls;
+        controls.Character.Fire.performed += context => Shoot();
+
+        controls.Character.EquipSlot1.performed += context => EquipWeapon(0);
+        controls.Character.EquipSlot2.performed += context => EquipWeapon(1);
+        controls.Character.DropCurrentWeapon.performed += context => DropWeapon();
+        controls.Character.Reload.performed += context =>
+        {
+            if (currentWeapon.CanReload())
+            {
+                player.weaponVisuals.PlayReloadAnimation();
+            }
+        };
+    }
+
+
+    public void PickupWeapon(Weapon newWeapon)
+    {
+        if(weaponSlots.Count >= maxSlots)
+        {
+            return;
+        }
+        weaponSlots.Add(newWeapon);
+    }
+    private void DropWeapon()
+    {
+        if(weaponSlots.Count <= 1)
+        {
+            return;
+        }
+        weaponSlots.Remove(currentWeapon);
+        currentWeapon = weaponSlots[0];
+    }
+    private  void EquipWeapon (int i)
+    {
+        currentWeapon = weaponSlots[i];
+    }
     private void Shoot()
     {
+        if(currentWeapon.CanShoot()== false)
+        {
+            return;
+        }
         GameObject newBullet =
             Instantiate(bulletPrefab, gunPoint.position, Quaternion.LookRotation(gunPoint.forward));
 
@@ -43,7 +98,7 @@ public class PlayerWeaponController : MonoBehaviour
 
         Vector3 direction = (aim.position - gunPoint.position).normalized;
 
-        if(player.aim.CanAimPrecisly() == false && player.aim.Target() == null)
+        if (player.aim.CanAimPrecisly() == false && player.aim.Target() == null)
             direction.y = 0;
 
         //weaponHolder.LookAt(aim);
